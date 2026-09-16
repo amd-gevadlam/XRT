@@ -1462,6 +1462,12 @@ public:
   is_output() const
   { return arg.dir == direction::output; }
 
+  bool
+  is_buffer() const
+  {
+    return arg.type == xarg::argtype::global || arg.type == xarg::argtype::constant;
+  }
+
   xarg::argtype
   type() const
   { return arg.type; }
@@ -2151,7 +2157,7 @@ public:
     // The group id can change if cus are trimmed based on argument
     auto& ip = ipctxs.front();  // guaranteed to be non empty
     auto memidx = ip->arg_memidx(argno);
-    if (memidx == ip_context::connectivity::no_memidx)
+    if (memidx == ip_context::connectivity::no_memidx && args[argno].is_buffer())
       throw xrt_core::error(EINVAL, "No memory group assigned for global argument at index "
                             + std::to_string(argno) + " of kernel '" + name + "'");
 
@@ -3033,6 +3039,9 @@ public:
     pkt->state = ERT_CMD_STATE_NEW;
 
     XRT_DEBUG_CALL(debug_cmd_packet(kernel->get_name(), pkt));
+
+    // XDP profiling hook - called immediately before run is submitted
+    xrt_core::xdp::run_start(this);
   }
 
   // start() - start the run object (execbuf)
@@ -3043,9 +3052,6 @@ public:
       throw xrt_core::error("Run object belongs to a runlist and cannot be explicitly started");
 
     prep_start();
-
-    // XDP profiling hook - called immediately before run is submitted
-    xrt_core::xdp::run_start(this);
 
     // log kernel start info
     // This is in critical path, we need to reduce log overhead
